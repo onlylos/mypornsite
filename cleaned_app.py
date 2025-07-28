@@ -85,15 +85,18 @@ def subscribe(price_id):
     mode = "payment" if price_id == lifetime_price_id else "subscription"
 
     checkout_session = stripe.checkout.Session.create(
-    payment_method_types=['card'],
-    line_items=[...],
-    mode='payment',
-    success_url='https://mypornsite.onrender.com/success?session_id={CHECKOUT_SESSION_ID}',
-    cancel_url='https://mypornsite.onrender.com/cancel',
-)
-        metadata={"plan": "lifetime" if mode == "payment" else "monthly"}
+        payment_method_types=['card'],
+        line_items=[{
+            'price': price_id,
+            'quantity': 1,
+        }],
+        mode=mode,
+        metadata={"plan": "lifetime" if mode == "payment" else "monthly"},
+        success_url='https://mypornsite.onrender.com/success?session_id={CHECKOUT_SESSION_ID}',
+        cancel_url='https://mypornsite.onrender.com/cancel',
     )
-    return redirect(session.url)
+
+    return redirect(checkout_session.url)
 
 @app.route("/webhook", methods=['POST'])
 def webhook():
