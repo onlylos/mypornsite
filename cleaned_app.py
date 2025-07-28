@@ -4,7 +4,7 @@ import string
 import sqlite3
 from datetime import datetime, timedelta
 
-from flask import Flask, request, render_template, abort
+from flask import Flask, request, render_template, redirect, abort
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
 import stripe
@@ -82,6 +82,30 @@ def access():
         return render_template("videos.html")
     return render_template("vault.html", error="Invalid or expired password.")
 
+@app.route("/subscribe", methods=["POST"])
+def subscribe():
+    plan = request.form.get("plan")
+    if plan not in ["monthly", "lifetime"]:
+        abort(400)
+
+    prices = {
+        "monthly": os.getenv("STRIPE_MONTHLY_PRICE_ID"),
+        "lifetime": os.getenv("STRIPE_LIFETIME_PRICE_ID")
+    }
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[{"price": prices[plan], "quantity": 1}],
+            mode="subscription" if plan == "monthly" else "payment",
+            success_url="https://mypornsite.onrender.com/success",
+            cancel_url="https://mypornsite.onrender.com/",
+            metadata={"plan": plan},
+        )
+        return redirect(checkout_session.url, code=303)
+    except Exception as e:
+        print("❌ Stripe checkout session error:", e)
+        abort(500)
+
 @app.route("/webhook", methods=["POST"])
 def stripe_webhook():
     payload = request.data
@@ -101,10 +125,8 @@ def stripe_webhook():
         password = generate_password()
         store_user(customer_email, password, "lifetime" if mode == "payment" else "monthly")
 
-        # Send password email
         try:
-            msg = Message("Your Access Password",
-                          recipients=[customer_email])
+            msg = Message("Your Access Password", recipients=[customer_email])
             msg.body = f"""Thanks for subscribing!
 
 Your password is:
