@@ -1,8 +1,10 @@
 import os
+import random
+import string
 import sqlite3
-import secrets
 from datetime import datetime, timedelta
-from flask import Flask, request, redirect, session, jsonify
+
+from flask import Flask, request, render_template, abort
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
 import stripe
@@ -10,131 +12,106 @@ import stripe
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
-
-# Stripe setup
+# Stripe config
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-# Flask-Mail setup
+# Flask app setup
+app = Flask(__name__)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv("EMAIL_USER")
 app.config['MAIL_PASSWORD'] = os.getenv("EMAIL_PASS")
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv("EMAIL_USER")
+
 mail = Mail(app)
 
 # SQLite setup
-conn = sqlite3.connect('users.db', check_same_thread=False)
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS users (
-    email TEXT,
-    password TEXT,
-    expires_at TEXT
-)''')
-conn.commit()
+DB_FILE = "users.db"
+
+def init_db():
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                email TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                expires_at TEXT
+            )
+        ''')
+
+init_db()
+
+def generate_password(length=12):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+def store_user(email, password, plan):
+    expires_at = None
+    if plan == 'monthly':
+        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute("REPLACE INTO users (email, password, expires_at) VALUES (?, ?, ?)",
+                     (email, password, expires_at))
+
+def is_password_valid(password):
+    with sqlite3.connect(DB_FILE) as conn:
+        cur = conn.execute("SELECT expires_at FROM users WHERE password = ?", (password,))
+        row = cur.fetchone()
+        if row:
+            expires_at = row[0]
+            if expires_at is None:
+                return True
+            return datetime.fromisoformat(expires_at) > datetime.now()
+        return False
 
 @app.route("/")
-def landing():
-    return '''
-    <head><link rel="stylesheet" type="text/css" href="/static/style.css"></head>
-    <div class="overlay">
-      <h1>18+ Age Verification</h1>
-      <p>By entering this website, you confirm that you are at least 18 years old...</p>
-      <a href="/home" class="button large-button">ENTER</a>
-      <p><a href="https://www.netsafe.org.nz/" target="_blank">I disagree - Exit here</a></p>
-    </div>
-    '''
+def index():
+    return render_template("index.html")
 
-@app.route("/home")
-def home():
-    return '''
-    <head><link rel="stylesheet" type="text/css" href="/static/style.css"></head>
-    <div class="overlay">
-      <h1>Choose your plan</h1>
-      <div class="pricing-container two-cols">
-        <div class="plan highlight">
-          <div class="badge">MOST POPULAR</div>
-          <h3>Monthly Access Plan</h3>
-          <h2>$20<span> NZD/mo</span></h2>
-          <ul>
-            <li>✔ Unrestricted access</li>
-            <li>✔ Past, present, and future videos</li>
-          </ul>
-          <a href="/subscribe/price_1Rph2QRzfEb0Epi7yUJdkRzc" class="btn">Buy now</a>
-        </div>
-        <div class="plan">
-          <h3>💎Lifetime Access Plan💎</h3>
-          <h2>$150<span> NZD</span></h2>
-          <ul>
-            <li>✔ One-time payment</li>
-            <li>✔ Lifetime content access</li>
-          </ul>
-          <a href="/subscribe/price_1Rph4KRzfEb0Epi7nL5JnokW" class="btn">Buy now</a>
-        </div>
-      </div>
-      <br>
-      <a href="/vault">Already have a password? Enter Vault</a>
-    </div>
-    '''
+@app.route("/vault")
+def vault():
+    return render_template("vault.html")
 
-@app.route("/subscribe/<price_id>")
-def subscribe(price_id):
-    lifetime_price_id = "price_1Rph4KRzfEb0Epi7nL5JnokW"
-    mode = "payment" if price_id == lifetime_price_id else "subscription"
+@app.route("/success")
+def success():
+    return render_template("success.html")
 
-    checkout_session = stripe.checkout.Session.create(
-        payment_method_types=['card'],
-        line_items=[{
-            'price': price_id,
-            'quantity': 1,
-        }],
-        mode=mode,
-        metadata={"plan": "lifetime" if mode == "payment" else "monthly"},
-        success_url='https://mypornsite.onrender.com/success?session_id={CHECKOUT_SESSION_ID}',
-        cancel_url='https://mypornsite.onrender.com/cancel',
-    )
+@app.route("/access", methods=["POST"])
+def access():
+    password = request.form.get("password")
+    if is_password_valid(password):
+        return render_template("videos.html")
+    return render_template("vault.html", error="Invalid or expired password.")
 
-    return redirect(checkout_session.url)
-
-@app.route("/webhook", methods=['POST'])
-def webhook():
+@app.route("/webhook", methods=["POST"])
+def stripe_webhook():
     payload = request.data
-    sig_header = request.headers.get('Stripe-Signature')
+    sig_header = request.headers.get('stripe-signature')
+    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET")
-        )
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
-        return str(e), 400
+        print("❌ Webhook signature verification failed:", e)
+        return '', 400
 
     if event['type'] == 'checkout.session.completed':
-        session_data = event['data']['object']
-        customer_email = session_data['customer_details']['email']
-        subscription_type = session_data['metadata'].get("plan") if 'metadata' in session_data else "monthly"
+        session = event['data']['object']
+        customer_email = session['customer_details']['email']
+        mode = session.get("mode")
+        password = generate_password()
+        store_user(customer_email, password, "lifetime" if mode == "payment" else "monthly")
 
-        # Generate unique password
-        password = secrets.token_urlsafe(8)
-        expires_at = (datetime.utcnow() + timedelta(days=30)).isoformat() if subscription_type == "monthly" else None
-
-        # Save to DB
-        conn = sqlite3.connect('users.db')
-        c = conn.cursor()
-        c.execute("INSERT INTO users (email, password, expires_at) VALUES (?, ?, ?)", 
-                  (customer_email, password, expires_at))
-        conn.commit()
-        conn.close()
-
-        print(f"✅ Created password for: {customer_email} -> {password}")
-
-        # Send password email to customer
+        # Send password email
         try:
             msg = Message("Your Access Password",
-                          sender=os.getenv("EMAIL_USER"),
                           recipients=[customer_email])
-            msg.body = f"Thanks for subscribing!\n\nYour password is:\n\n{password}\n\nUse it here: https://yourdomain.com/vault"
+            msg.body = f"""Thanks for subscribing!
+
+Your password is:
+
+{password}
+
+Use it here: https://mypornsite.onrender.com/vault"""
             mail.send(msg)
             print(f"📬 Email sent to: {customer_email}")
         except Exception as e:
@@ -142,82 +119,17 @@ def webhook():
 
     return '', 200
 
-
-@app.route("/success")
-def success():
-    return '''
-    <head><link rel="stylesheet" type="text/css" href="/static/style.css"></head>
-    <div class="overlay">
-      <h2>✅ Payment successful! Your password has been emailed.</h2>
-      <a href='/vault'>Enter Vault</a>
-    </div>
-    '''
-
-@app.route("/cancel")
-def cancel():
-    return '''
-    <head><link rel="stylesheet" type="text/css" href="/static/style.css"></head>
-    <div class="overlay">
-      <h2>❌ Payment canceled.</h2><a href='/home'>Go Back</a>
-    </div>
-    '''
-
-@app.route("/vault", methods=['GET', 'POST'])
-def vault():
-    if request.method == 'POST':
-        pw = request.form['password']
-        conn = sqlite3.connect('users.db')
-        c = conn.cursor()
-        c.execute("SELECT email, expires_at FROM users WHERE password = ?", (pw,))
-        user = c.fetchone()
-        conn.close()
-
-        if user:
-            email, expires_at = user
-            if expires_at and datetime.utcnow() > datetime.fromisoformat(expires_at):
-                return '''<div class="overlay"><p>⚠️ Password expired. <a href="/vault">Try again</a>.</p></div>'''
-
-            session['authenticated'] = True
-            return redirect("/videos")
-
-        return '''<div class="overlay"><p>❌ Invalid password. <a href="/vault">Try again</a>.</p></div>'''
-
-    return '''
-    <head><link rel="stylesheet" href="/static/style.css"></head>
-    <div class="overlay">
-      <h2>🔐 Enter Your Access Password</h2>
-      <form method="POST">
-          <input type="password" name="password" required>
-          <button type="submit">Unlock Vault</button>
-      </form>
-    </div>
-    '''
-
-@app.route("/videos")
-def videos():
-    if not session.get('authenticated'):
-        return redirect("/vault")
-    return '''
-    <head><link rel="stylesheet" type="text/css" href="/static/style.css"></head>
-    <div class="overlay">
-      <h2>🎬 Your Private Videos</h2>
-      <video width="480" controls><source src="/static/video1.mp4" type="video/mp4"></video>
-      <video width="480" controls><source src="/static/video2.mp4" type="video/mp4"></video>
-      <p><a href="/home">Return Home</a></p>
-    </div>
-    '''
-
 @app.route("/test-email")
 def test_email():
+    test_recipient = request.args.get("email", os.getenv("EMAIL_USER"))
     try:
-        msg = Message("Test Email",
-                      sender=os.getenv("EMAIL_USER"),
-                      recipients=[os.getenv("EMAIL_USER")])
-        msg.body = "✅ This is a test email from your Flask app."
+        msg = Message("Test Email", recipients=[test_recipient])
+        msg.body = "This is a test email from your Flask app."
         mail.send(msg)
         return "✅ Test email sent!"
     except Exception as e:
-        return f"❌ Failed to send: {e}"
+        print("❌ Email test failed:", e)
+        return f"❌ Email test failed: {e}"
 
 if __name__ == "__main__":
     app.run(debug=True)
