@@ -71,9 +71,14 @@ def index():
 def vault():
     return render_template("vault.html")
 
-@app.route("/success")
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/success')
 def success():
-    return render_template("success.html")
+    return render_template('success.html')
+
 
 @app.route("/access", methods=["POST"])
 def access():
@@ -82,29 +87,34 @@ def access():
         return render_template("videos.html")
     return render_template("vault.html", error="Invalid or expired password.")
 
-@app.route("/subscribe", methods=["POST"])
+@app.route('/subscribe', methods=['POST'])
 def subscribe():
     plan = request.form.get("plan")
-    if plan not in ["monthly", "lifetime"]:
-        abort(400)
 
-    prices = {
-        "monthly": os.getenv("STRIPE_MONTHLY_PRICE_ID"),
-        "lifetime": os.getenv("STRIPE_LIFETIME_PRICE_ID")
-    }
+    if plan not in ["lifetime", "monthly"]:
+        return "Invalid plan selected", 400
 
-    try:
-        checkout_session = stripe.checkout.Session.create(
-            line_items=[{"price": prices[plan], "quantity": 1}],
-            mode="subscription" if plan == "monthly" else "payment",
-            success_url="https://mypornsite.onrender.com/success",
-            cancel_url="https://mypornsite.onrender.com/",
-            metadata={"plan": plan},
-        )
-        return redirect(checkout_session.url, code=303)
-    except Exception as e:
-        print("❌ Stripe checkout session error:", e)
-        abort(500)
+    mode = "payment" if plan == "lifetime" else "subscription"
+
+    checkout_session = stripe.checkout.Session.create(
+        success_url=url_for("success", _external=True),
+        cancel_url=url_for("index", _external=True),
+        payment_method_types=["card"],
+        mode=mode,
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "unit_amount": 6000 if plan == "lifetime" else 2000,
+                "product_data": {
+                    "name": f"{plan.capitalize()} Access"
+                },
+            },
+            "quantity": 1,
+        }],
+        metadata={"plan": plan}
+    )
+
+    return redirect(checkout_session.url, code=303)
 
 @app.route("/webhook", methods=["POST"])
 def stripe_webhook():
