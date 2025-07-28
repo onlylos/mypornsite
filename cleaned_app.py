@@ -84,15 +84,13 @@ def subscribe(price_id):
     lifetime_price_id = "price_1Rph4KRzfEb0Epi7nL5JnokW"
     mode = "payment" if price_id == lifetime_price_id else "subscription"
 
-    session = stripe.checkout.Session.create(
-        payment_method_types=['card'],
-        mode=mode,
-        line_items=[{
-            'price': price_id,
-            'quantity': 1
-        }],
-        success_url='http://127.0.0.1:5000/success?session_id={CHECKOUT_SESSION_ID}',
-        cancel_url='http://127.0.0.1:5000/cancel',
+    checkout_session = stripe.checkout.Session.create(
+    payment_method_types=['card'],
+    line_items=[...],
+    mode='payment',
+    success_url='https://mypornsite.onrender.com/success?session_id={CHECKOUT_SESSION_ID}',
+    cancel_url='https://mypornsite.onrender.com/cancel',
+)
         metadata={"plan": "lifetime" if mode == "payment" else "monthly"}
     )
     return redirect(session.url)
