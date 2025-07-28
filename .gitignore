@@ -1,2 +1,10 @@
-.env 
-.env 
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+__pycache__/
+.env
+instance/
+*.sqlite3
+*.db
