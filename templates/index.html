@@ -1,10 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>My Porn Site</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OnlyLos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Welcome to the Vault</h1>
-    <p>This is your sexy vault access page 👀</p>
+  <h1>Choose Your Access Tier</h1>
+
+  <div class="pricing-container">
+    <div class="plan">
+      <div class="badge">Best Value</div>
+      <h2>Lifetime Access<br><span>$60 one-time</span></h2>
+      <ul>
+        <li>Unlimited content</li>
+        <li>Private vault access</li>
+        <li>One-time payment</li>
+      </ul>
+      <form action="/subscribe" method="POST">
+        <input type="hidden" name="plan" value="lifetime">
+        <button type="submit" class="button">Get Access</button>
+      </form>
+    </div>
+
+    <div class="plan">
+      <h2>Monthly Access<br><span>$20/month</span></h2>
+      <ul>
+        <li>Unlimited content</li>
+        <li>Private vault access</li>
+        <li>Billed monthly</li>
+      </ul>
+      <form action="/subscribe" method="POST">
+        <input type="hidden" name="plan" value="monthly">
+        <button type="submit" class="button">Subscribe</button>
+      </form>
+    </div>
+  </div>
 </body>
 </html>
