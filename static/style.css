@@ -1,141 +1,15 @@
-/* Global reset and background image */
+
 body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 100vh;
-  padding-top: 40px;
-  margin: 0;
-  font-family: Arial, sans-serif;
-  color: white;
-  text-align: center;
-
-  background: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)),
-              url('/static/bg.png') no-repeat;
-  background-size: cover;
-  background-position: 10% top;
-body {
-  ...
-  background-attachment: fixed;
+    background-color: black;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 40px;
 }
-
-
-
-/* Headings */
-h1, h2, h3 {
-  margin-top: 0;
-  font-weight: bold;
-}
-
-a {
-  color: #FFD700;
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-/* Buttons */
-.button, .btn {
-  background-color: #FFD700;
-  color: #000;
-  font-weight: bold;
-  padding: 12px 25px;
-  font-size: 16px;
-  border: none;
-  border-radius: 6px;
-  display: inline-block;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.btn:hover {
-  background-color: #e6c200;
-}
-
-.large-button {
-  font-size: 18px;
-  padding: 14px 35px;
-}
-
-.disabled {
-  background-color: #444;
-  color: #aaa;
-  cursor: not-allowed;
-}
-
-/* Pricing Cards */
-.pricing-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 30px;
-  margin-top: 40px;
-}
-
-.plan {
-  background-color: #111;
-  border-radius: 20px;
-  padding: 30px 25px;
-  width: 280px;
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.25);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.plan:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
-}
-
-.plan h2 {
-  font-size: 28px;
-  margin: 10px 0;
-}
-
-.plan h2 span {
-  font-size: 16px;
-  font-weight: normal;
-}
-
-.plan ul {
-  list-style: none;
-  padding: 0;
-  text-align: left;
-  margin: 20px 0;
-}
-
-.plan ul li {
-  margin-bottom: 10px;
-  color: #ddd;
-}
-
-/* Badge */
-.badge {
-  background-color: #FFD700;
-  color: black;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: bold;
-  border-radius: 12px;
-  display: inline-block;
-  margin-bottom: 10px;
-}
-
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .pricing-container {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .overlay {
-    margin: 40px auto;
-    padding: 20px;
-  }
-
-  .plan {
-    width: 90%;
-  }
+.btn {
+    background: #e60073;
+    padding: 10px 20px;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
 }
