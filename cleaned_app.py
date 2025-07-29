@@ -63,9 +63,6 @@ def is_password_valid(password):
             return datetime.fromisoformat(expires_at) > datetime.now()
         return False
 
-@app.route("/")
-def index():
-    return render_template("index.html")
 
 @app.route("/vault")
 def vault():
